@@ -3,6 +3,7 @@ from sqlalchemy import create_engine, Column, Integer, String, ForeignKey
 from sqlalchemy.orm import sessionmaker
 from getpass import getpass
 from data_privacy_vault.models import User, Credential, Base
+from data_privacy_vault.encription import hash_password, verify_password
 
 def validate_username(ctx, param, value):
     if not value or not value.strip():
@@ -72,8 +73,9 @@ def cli(ctx):
 @click.pass_context
 def register(ctx, username, password):
     try:
+        hashed_password = hash_password(password)
         session = ctx.obj['session']
-        new_user = User(username=username, password=password)
+        new_user = User(username=username, password=hashed_password)
         session.add(new_user)
         session.commit()
         click.echo('User registered successfully!')
@@ -89,9 +91,9 @@ def register(ctx, username, password):
 def login(ctx, username, password):
     try:
         session = ctx.obj['session']
-        user = session.query(User).filter_by(username=username, password=password).first()
+        user = session.query(User).filter_by(username=username).first()
 
-        if user:
+        if user and verify_password(password, user.password):
             click.echo(f'Logged in as {username}')
             ctx.obj['user'] = user
             while True:
