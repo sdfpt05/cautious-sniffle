@@ -130,3 +130,4 @@ def login(ctx, username, password):
 
 if __name__ == '__main__':
     cli(obj={})
+
