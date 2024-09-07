@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
-from models import User
+from shared.models import User, init_db
 from werkzeug.security import check_password_hash
 from datetime import timedelta
 
@@ -13,8 +13,8 @@ def register():
         return jsonify({"msg": "Username or email already exists"}), 400
     new_user = User(username=data['username'], email=data['email'])
     new_user.set_password(data['password'])
-    db.session.add(new_user)
-    db.session.commit()
+    init_db.db.session.add(new_user)
+    init_db.db.session.commit()
     return jsonify({"msg": "User registered successfully"}), 201
 
 @auth.route('/login', methods=['POST'])

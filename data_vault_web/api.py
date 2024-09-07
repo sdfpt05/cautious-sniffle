@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import Credential
-from encryption import EncryptionManager
+from shared.models import Credential, init_db
+from shared.encryption import EncryptionManager
 from config import Config
 
 api = Blueprint('api', __name__)
@@ -27,8 +27,8 @@ def add_credential():
     data = request.get_json()
     encrypted_data = encryption_manager.encrypt_data(data['data'])
     new_credential = Credential(name=data['name'], encrypted_data=encrypted_data, user_id=user_id)
-    db.session.add(new_credential)
-    db.session.commit()
+    init_db.session.add(new_credential)
+    init_db.db.session.commit()
     return jsonify({"msg": "Credential added successfully"}), 201
 
 @api.route('/credentials/<int:cred_id>', methods=['PUT'])
@@ -42,7 +42,7 @@ def update_credential(cred_id):
     credential.name = data.get('name', credential.name)
     if 'data' in data:
         credential.encrypted_data = encryption_manager.encrypt_data(data['data'])
-    db.session.commit()
+    init_db.session.commit()
     return jsonify({"msg": "Credential updated successfully"}), 200
 
 @api.route('/credentials/<int:cred_id>', methods=['DELETE'])
@@ -52,6 +52,6 @@ def delete_credential(cred_id):
     credential = Credential.query.filter_by(id=cred_id, user_id=user_id).first()
     if not credential:
         return jsonify({"msg": "Credential not found"}), 404
-    db.session.delete(credential)
-    db.session.commit()
+    init_db.session.delete(credential)
+    init_db.session.commit()
     return jsonify({"msg": "Credential deleted successfully"}), 200
