@@ -1,11 +1,11 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import db, Credential, User
+from models import Credential
 from encryption import EncryptionManager
 from config import Config
 
 api = Blueprint('api', __name__)
-encryption_manager = EncryptionManager(Config.ENCRYPTION_KEY)
+encryption_manager = EncryptionManager(Config.ENCRYPTION_SECRET)
 
 @api.route('/credentials', methods=['GET'])
 @jwt_required()
@@ -16,7 +16,7 @@ def get_credentials():
         {
             'id': cred.id,
             'name': cred.name,
-            'data': encryption_manager.decrypt_data(cred.encrypted_data)
+            'data': encryption_manager.decrypt_data(cred.encrypted_data.encode())
         } for cred in credentials
     ]), 200
 
