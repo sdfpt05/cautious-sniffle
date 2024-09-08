@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, LargeBinary
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, DateTime, Boolean, Text
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy.sql import func
 from sqlalchemy.ext.hybrid import hybrid_property
-from cryptography.fernet import Fernet
-import os
+from werkzeug.security import generate_password_hash, check_password_hash
+import uuid
 
 Base = declarative_base()
 
@@ -10,33 +11,48 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    salt = Column(String, nullable=False)
-    encryption_key = Column(LargeBinary, nullable=False)
+    public_id = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    username = Column(String(50), unique=True, nullable=False, index=True)
+    email = Column(String(120), unique=True, nullable=False, index=True)
+    password_hash = Column(String(255), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
     credentials = relationship("Credential", back_populates="user", cascade="all, delete-orphan")
 
-class Credential(Base):
-    __tablename__ = 'creds'
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    _encrypted_data = Column(LargeBinary, nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    user = relationship("User", back_populates="credentials")
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
     @hybrid_property
-    def data(self):
-        key = Fernet(self.user.encryption_key)
-        return key.decrypt(self._encrypted_data).decode()
+    def is_authenticated(self):
+        return True
 
-    @data.setter
-    def data(self, value):
-        key = Fernet(self.user.encryption_key)
-        self._encrypted_data = key.encrypt(value.encode())
+    @hybrid_property
+    def is_anonymous(self):
+        return False
 
-def init_db():
-    db_url = os.getenv('DATABASE_URL', 'sqlite:///data_vault.db')
+    def get_id(self):
+        return self.public_id
+
+class Credential(Base):
+    __tablename__ = 'credentials'
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(100), nullable=False)
+    encrypted_data = Column(Text, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    user = relationship("User", back_populates="credentials")
+
+def init_db(db_url):
     engine = create_engine(db_url)
     Base.metadata.create_all(engine)
-    return engine
+    Session = sessionmaker(bind=engine)
+    return Session()

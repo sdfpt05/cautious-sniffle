@@ -1,25 +1,33 @@
-from passlib.context import CryptContext
 from cryptography.fernet import Fernet
-import os
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
 import base64
+import os
 
-password_context = CryptContext(schemes=["argon2"], deprecated="auto")
+def generate_key(password: str, salt: bytes = None) -> tuple:
+    if salt is None:
+        salt = os.urandom(16)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(password.encode()))
+    return key, salt
 
-def hash_password(password: str) -> tuple:
-    salt = os.urandom(16)
-    hashed = password_context.hash(password + base64.b64encode(salt).decode())
-    return hashed, base64.b64encode(salt).decode()
+class EncryptionManager:
+    def __init__(self, key):
+        self.fernet = Fernet(key)
 
-def verify_password(plain_password: str, hashed_password: str, salt: str) -> bool:
-    return password_context.verify(plain_password + salt, hashed_password)
+    def encrypt_data(self, data: str) -> bytes:
+        return self.fernet.encrypt(data.encode())
 
-def generate_key() -> bytes:
-    return Fernet.generate_key()
+    def decrypt_data(self, encrypted_data: bytes) -> str:
+        return self.fernet.decrypt(encrypted_data).decode()
 
-def encrypt_data(key: bytes, data: str) -> bytes:
-    f = Fernet(key)
-    return f.encrypt(data.encode())
-
-def decrypt_data(key: bytes, encrypted_data: bytes) -> str:
-    f = Fernet(key)
-    return f.decrypt(encrypted_data).decode()
+    @staticmethod
+    def generate_key():
+        return Fernet.generate_key()
