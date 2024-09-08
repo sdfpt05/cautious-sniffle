@@ -1,84 +1,85 @@
 # Data Privacy Vault
 
-Data Privacy Vault is a command-line interface (CLI) application written in Python that allows multiple users to securely manage their credentials. Users can log in, view their credentials, and add new credentials.
+A secure credential management system with both CLI and web interfaces.
 
 ## Features
 
-- User registration and login system
-- Secure storage of user credentials
-- View and add credentials for the logged-in user
-- Password hashing for enhanced security
+- User registration and authentication
+- Secure storage of credentials
+- Encryption of sensitive data
+- CLI interface for easy local access
+- Web API for remote access and integration
 
-## Prerequisites
-
-- Python 3.x
-- `pipenv` (install via `pip install pipenv`)
-- SQLite (or another supported database)
-
-## Installation
+## Setup
 
 1. Clone the repository:
 
-    ```bash
-    git clone https://github.com/sdfpt04/data-privacy-vault.git
-    ```
+   ```
+   git clone https://github.com/yourusername/data-privacy-vault.git
+   cd data-privacy-vault
+   ```
 
-2. Navigate to the project directory:
+2. Set up a virtual environment:
 
-    ```bash
-    cd data-privacy-vault
-    ```
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+   ```
 
-3. Install dependencies using `pipenv`:
+3. Install dependencies:
 
-    ```bash
-    pipenv install
-    ```
+   ```
+   pip install -r data_vault_cli/requirements.txt
+   pip install -r data_vault_web/requirements.txt
+   ```
 
-4. Activate the virtual environment:
-
-    ```bash
-    pipenv shell
-    ```
+4. Set up environment variables:
+   Create a `.env` file in the root directory with the following content:
+   ```
+   DATABASE_URL=sqlite:///data_vault.db
+   SECRET_KEY=your-secret-key
+   JWT_SECRET_KEY=your-jwt-secret-key
+   ENCRYPTION_SECRET=your-encryption-secret
+   ```
 
 ## Usage
 
-1. Run the application:
+### CLI Interface
 
-    ```bash
-    python main.py
-    ```
+Run the CLI application:
 
-2. Choose the desired options from the menu:
+```
+python data_vault_cli/run.py
+```
 
-    - **Register:** Create a new user account.
-    - **Login:** Log in with an existing account to manage credentials.
-    - **View Credentials:** View stored credentials.
-    - **Add Credential:** Add a new credential.
+### Web Interface
 
-3. Follow the on-screen prompts to interact with the application.
+Run the web application:
 
-## Database
+```
+python data_vault_web/app.py
+```
 
-The application uses SQLite by default. You can change the database configuration in `data_privacy_vault/cli.py`.
+## API Endpoints
+
+- POST /auth/register - Register a new user
+- POST /auth/login - Login and receive JWT token
+- GET /api/credentials - Get all credentials (requires authentication)
+- POST /api/credentials - Add a new credential (requires authentication)
+- PUT /api/credentials/<id> - Update a credential (requires authentication)
+- DELETE /api/credentials/<id> - Delete a credential (requires authentication)
+
+## Security Considerations
+
+- All sensitive data is encrypted before storage
+- Passwords are hashed using strong algorithms
+- JWT is used for API authentication
+- Environment variables are used for sensitive configuration
 
 ## Contributing
 
-If you'd like to contribute to this project, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch (`git checkout -b feature/your-feature`).
-3. Commit your changes (`git commit -am 'Add your feature'`).
-4. Push to the branch (`git push origin feature/your-feature`).
-5. Create a pull request.
+Please read CONTRIBUTING.md for details on our code of conduct, and the process for submitting pull requests.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
-
-## Acknowledgments
-
-- [Click](https://click.palletsprojects.com/en/7.x/) - A Python package for creating beautiful command-line interfaces.
-- [SQLAlchemy](https://www.sqlalchemy.org/) - SQL toolkit and Object-Relational Mapping (ORM) for Python.
-- [Colorama](https://pypi.org/project/colorama/) - Simple cross-platform colored terminal text.
-
+This project is licensed under the MIT License - see the LICENSE file for details.

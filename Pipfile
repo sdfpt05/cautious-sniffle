@@ -1,16 +1,31 @@
-[[source]]
+[[
+source
+]]
 url = "https://pypi.org/simple"
 verify_ssl = true
 name = "pypi"
 
-[packages]
-passlib = "*"
-cryptography = "*"
-colorama = "*"
-click = "*"
-sqlalchemy = "*"
+[
+packages
+]
+click = "==8.0.3"
+SQLAlchemy = "==1.4.31"
+cryptography = "==3.4.7"
+python-dotenv = "==0.19.2"
+Flask = "==2.0.2"
+Flask-SQLAlchemy = "==2.5.1"
+Flask-Migrate = "==3.1.0"
+Flask-JWT-Extended = "==4.3.1"
+gunicorn = "==20.1.0"
 
-[dev-packages]
+[
+dev-packages
+]
+pytest = "*"
+black = "*"
+flake8 = "*"
 
-[requires]
-python_version = "3.10"
+[
+requires
+]
+python_version = "3.9"
