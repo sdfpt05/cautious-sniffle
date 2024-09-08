@@ -1,20 +1,29 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from shared.models import Credential, init_db
-from shared.encryption import EncryptionManager
-from config import Config
+from models import Credential, User
+from encryption import EncryptionManager
+from sqlalchemy.exc import IntegrityError
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 api = Blueprint('api', __name__)
-encryption_manager = EncryptionManager(Config.ENCRYPTION_SECRET)
+limiter = Limiter(key_func=get_remote_address)
+
+encryption_manager = EncryptionManager(current_app.config['ENCRYPTION_SECRET'])
 
 @api.route('/credentials', methods=['GET'])
 @jwt_required()
+@limiter.limit("30 per minute")
 def get_credentials():
-    user_id = get_jwt_identity()
-    credentials = Credential.query.filter_by(user_id=user_id).all()
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    credentials = current_app.db_session.query(Credential).filter_by(user_id=user.id).all()
     return jsonify([
         {
-            'id': cred.id,
+            'id': cred.public_id,
             'name': cred.name,
             'data': encryption_manager.decrypt_data(cred.encrypted_data.encode())
         } for cred in credentials
@@ -22,36 +31,64 @@ def get_credentials():
 
 @api.route('/credentials', methods=['POST'])
 @jwt_required()
+@limiter.limit("10 per minute")
 def add_credential():
-    user_id = get_jwt_identity()
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
     data = request.get_json()
-    encrypted_data = encryption_manager.encrypt_data(data['data'])
-    new_credential = Credential(name=data['name'], encrypted_data=encrypted_data, user_id=user_id)
-    init_db.session.add(new_credential)
-    init_db.db.session.commit()
-    return jsonify({"msg": "Credential added successfully"}), 201
+    try:
+        encrypted_data = encryption_manager.encrypt_data(data['data'])
+        new_credential = Credential(name=data['name'], encrypted_data=encrypted_data, user_id=user.id)
+        current_app.db_session.add(new_credential)
+        current_app.db_session.commit()
+        return jsonify({"msg": "Credential added successfully", "id": new_credential.public_id}), 201
+    except KeyError:
+        return jsonify({"msg": "Missing name or data"}), 400
+    except IntegrityError:
+        current_app.db_session.rollback()
+        return jsonify({"msg": "Error adding credential"}), 400
 
-@api.route('/credentials/<int:cred_id>', methods=['PUT'])
+@api.route('/credentials/<string:cred_public_id>', methods=['PUT'])
 @jwt_required()
-def update_credential(cred_id):
-    user_id = get_jwt_identity()
-    credential = Credential.query.filter_by(id=cred_id, user_id=user_id).first()
+@limiter.limit("10 per minute")
+def update_credential(cred_public_id):
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    credential = current_app.db_session.query(Credential).filter_by(public_id=cred_public_id, user_id=user.id).first()
     if not credential:
         return jsonify({"msg": "Credential not found"}), 404
+    
     data = request.get_json()
-    credential.name = data.get('name', credential.name)
-    if 'data' in data:
-        credential.encrypted_data = encryption_manager.encrypt_data(data['data'])
-    init_db.session.commit()
-    return jsonify({"msg": "Credential updated successfully"}), 200
+    try:
+        if 'name' in data:
+            credential.name = data['name']
+        if 'data' in data:
+            credential.encrypted_data = encryption_manager.encrypt_data(data['data'])
+        current_app.db_session.commit()
+        return jsonify({"msg": "Credential updated successfully"}), 200
+    except IntegrityError:
+        current_app.db_session.rollback()
+        return jsonify({"msg": "Error updating credential"}), 400
 
-@api.route('/credentials/<int:cred_id>', methods=['DELETE'])
+@api.route('/credentials/<string:cred_public_id>', methods=['DELETE'])
 @jwt_required()
-def delete_credential(cred_id):
-    user_id = get_jwt_identity()
-    credential = Credential.query.filter_by(id=cred_id, user_id=user_id).first()
+@limiter.limit("10 per minute")
+def delete_credential(cred_public_id):
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    credential = current_app.db_session.query(Credential).filter_by(public_id=cred_public_id, user_id=user.id).first()
     if not credential:
         return jsonify({"msg": "Credential not found"}), 404
-    init_db.session.delete(credential)
-    init_db.session.commit()
+    
+    current_app.db_session.delete(credential)
+    current_app.db_session.commit()
     return jsonify({"msg": "Credential deleted successfully"}), 200
