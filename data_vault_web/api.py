@@ -1,15 +1,21 @@
+# Imports
 from flask import Blueprint, jsonify, request, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from models import Credential, User
-from encryption import EncryptionManager
+from shared.models import Credential, User
+from shared.encryption import EncryptionManager
 from sqlalchemy.exc import IntegrityError
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from datetime import datetime
 
+# Blueprint and Limiter initialization
 api = Blueprint('api', __name__)
 limiter = Limiter(key_func=get_remote_address)
 
+# Encryption manager initialization
 encryption_manager = EncryptionManager(current_app.config['ENCRYPTION_SECRET'])
+
+# Routes
 
 @api.route('/credentials', methods=['GET'])
 @jwt_required()
@@ -92,3 +98,49 @@ def delete_credential(cred_public_id):
     current_app.db_session.delete(credential)
     current_app.db_session.commit()
     return jsonify({"msg": "Credential deleted successfully"}), 200
+
+# New Routes for Synchronization
+
+@api.route('/sync_credential', methods=['POST'])
+@jwt_required()
+def sync_credential():
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    data = request.get_json()
+    try:
+        credential = current_app.db_session.query(Credential).filter_by(name=data['name'], user_id=user.id).first()
+        if credential:
+            if datetime.fromisoformat(data['last_modified']) > credential.updated_at:
+                credential.data = data['data']
+                credential.updated_at = datetime.fromisoformat(data['last_modified'])
+        else:
+            new_credential = Credential(name=data['name'], data=data['data'], user_id=user.id)
+            current_app.db_session.add(new_credential)
+        
+        current_app.db_session.commit()
+        return jsonify({"msg": "Credential synced successfully"}), 200
+    except KeyError:
+        return jsonify({"msg": "Missing required data"}), 400
+    except IntegrityError:
+        current_app.db_session.rollback()
+        return jsonify({"msg": "Error syncing credential"}), 400
+
+@api.route('/get_credentials', methods=['GET'])
+@jwt_required()
+def get_credentials_for_sync():
+    user_public_id = get_jwt_identity()
+    user = current_app.db_session.query(User).filter_by(public_id=user_public_id).first()
+    if not user:
+        return jsonify({"msg": "User not found"}), 404
+    
+    credentials = current_app.db_session.query(Credential).filter_by(user_id=user.id).all()
+    return jsonify([
+        {
+            'name': cred.name,
+            'data': cred.data,
+            'last_modified': str(cred.updated_at)
+        } for cred in credentials
+    ]), 200

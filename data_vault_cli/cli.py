@@ -9,6 +9,8 @@ import re
 import sys
 import secrets
 import string
+from shared.db_sync import DatabaseSynchronizer
+import os
 
 def validate_password_strength(password):
     if len(password) < 12:
@@ -69,7 +71,8 @@ def print_menu():
     click.echo("3. Update Credential")
     click.echo("4. Delete Credential")
     click.echo("5. Generate Strong Password")
-    click.echo("6. Logout")
+    click.echo("6. Sync Databases")
+    click.echo("7. Logout")
 
 @cli.command()
 @click.option('--username', prompt=True, help='Your username')
@@ -83,9 +86,20 @@ def login(ctx, username, password):
         if user and verify_password(password, user.password, user.salt):
             click.echo(Fore.GREEN + f'Logged in as {username}' + Style.RESET_ALL)
             ctx.obj['user'] = user
+
+            # Initialize DatabaseSynchronizer
+            remote_url = os.getenv('REMOTE_DB_URL', 'http://example.com/api')
+            api_key = os.getenv('API_KEY', 'your-api-key')
+            ctx.obj['syncer'] = DatabaseSynchronizer(session, remote_url, api_key)
+
+            # Perform initial sync
+            click.echo(Fore.CYAN + "Syncing with remote database..." + Style.RESET_ALL)
+            ctx.obj['syncer'].perform_full_sync(user)
+            click.echo(Fore.GREEN + "Sync completed." + Style.RESET_ALL)
+
             while True:
                 print_menu()
-                option = click.prompt("\nSelect an option", type=click.Choice(['1', '2', '3', '4', '5', '6']))
+                option = click.prompt("\nSelect an option", type=click.Choice(['1', '2', '3', '4', '5', '6', '7']))
 
                 if option == '1':
                     view_credentials(ctx)
@@ -98,12 +112,19 @@ def login(ctx, username, password):
                 elif option == '5':
                     generate_password(ctx)
                 elif option == '6':
+                    sync_databases(ctx)
+                elif option == '7':
                     click.echo(Fore.CYAN + "\nGoodbye!" + Style.RESET_ALL)
                     break
         else:
             click.echo(Fore.RED + 'Invalid username or password. Please try again.' + Style.RESET_ALL)
     except Exception as e:
         click.echo(Fore.RED + f'Error: {str(e)}' + Style.RESET_ALL)
+
+def sync_databases(ctx):
+    click.echo(Fore.CYAN + "Syncing with remote database..." + Style.RESET_ALL)
+    ctx.obj['syncer'].perform_full_sync(ctx.obj['user'])
+    click.echo(Fore.GREEN + "Sync completed." + Style.RESET_ALL)
 
 def view_credentials(ctx):
     user = ctx.obj['user']
@@ -132,6 +153,7 @@ def add_credential(ctx):
         ctx.obj['session'].add(new_credential)
         ctx.obj['session'].commit()
         click.echo(Fore.GREEN + 'Credential added successfully!' + Style.RESET_ALL)
+        ctx.obj['syncer'].sync_to_remote(user)
     except Exception as e:
         click.echo(Fore.RED + f'An error occurred while adding the credential: {str(e)}' + Style.RESET_ALL)
 
@@ -149,6 +171,7 @@ def update_credential(ctx):
             credential.data = encrypted_data
             ctx.obj['session'].commit()
             click.echo(Fore.GREEN + 'Credential updated successfully!' + Style.RESET_ALL)
+            ctx.obj['syncer'].sync_to_remote(ctx.obj['user'])
         except Exception as e:
             click.echo(Fore.RED + f'An error occurred while updating the credential: {str(e)}' + Style.RESET_ALL)
     else:
@@ -165,6 +188,7 @@ def delete_credential(ctx):
                 ctx.obj['session'].delete(credential)
                 ctx.obj['session'].commit()
                 click.echo(Fore.GREEN + 'Credential deleted successfully!' + Style.RESET_ALL)
+                ctx.obj['syncer'].sync_to_remote(ctx.obj['user'])
             except Exception as e:
                 click.echo(Fore.RED + f'An error occurred while deleting the credential: {str(e)}' + Style.RESET_ALL)
         else:
@@ -180,6 +204,7 @@ def generate_password(ctx):
     click.echo(Fore.YELLOW + "Make sure to save this password securely!" + Style.RESET_ALL)
 
 if __name__ == '__main__':
-    cli(obj={})
+    cli()
+
 
 
