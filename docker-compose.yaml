@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # Web API Service
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SERVICE=web
+    container_name: data-vault-web
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/data_vault
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
+      - FLASK_APP=data_vault_web/app.py
+      - FLASK_ENV=${FLASK_ENV:-production}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - RATELIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    command: ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "data_vault_web.app:create_app()"]
+    networks:
+      - data-vault-network
+
+  # CLI Service (for scheduled tasks and management)
+  cli:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - SERVICE=cli
+    container_name: data-vault-cli
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/data_vault
+      - ENCRYPTION_SECRET=${ENCRYPTION_SECRET}
+      - REMOTE_DB_URL=http://web:5000/api
+      - API_KEY=${API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    depends_on:
+      - db
+      - web
+    # Keep the container running with a simple command
+    command: tail -f /dev/null
+    networks:
+      - data-vault-network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:14
+    container_name: data-vault-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=data_vault
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - data-vault-network
+
+  # Redis for rate limiting and caching
+  redis:
+    image: redis:7-alpine
+    container_name: data-vault-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    networks:
+      - data-vault-network
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: data-vault-pgadmin
+    restart: unless-stopped
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-admin@example.com}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASSWORD:-admin}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    networks:
+      - data-vault-network
+
+  # Optional: Nginx reverse proxy for production
+  # Uncomment to use in production
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: data-vault-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/conf:/etc/nginx/conf.d
+  #     - ./nginx/certs:/etc/nginx/certs
+  #     - ./nginx/www:/var/www/html
+  #   depends_on:
+  #     - web
+  #   networks:
+  #     - data-vault-network
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  data-vault-network:
+    driver: bridge

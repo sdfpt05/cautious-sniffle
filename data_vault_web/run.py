@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-import sys
 import os
+import sys
 import logging
-from .cli import cli  # Changed from "from cli import cli" to use relative import
-from shared.models import Base, init_db
-from sqlalchemy import create_engine
+from app import create_app
 from dotenv import load_dotenv
+from flask.cli import FlaskGroup
+from shared.models import Base
+from sqlalchemy import create_engine
 
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/data_vault_cli.log'),
+        logging.FileHandler('logs/data_vault_web.log'),
         logging.StreamHandler()
     ]
 )
@@ -29,9 +30,6 @@ def create_directories():
 def init_database():
     """Initialize the database and create tables"""
     try:
-        # Load environment variables
-        load_dotenv()
-        
         # Get database URL from environment or use default
         db_url = os.environ.get('DATABASE_URL', 'sqlite:///data/data_vault.db')
         
@@ -45,20 +43,12 @@ def init_database():
         logger.error(f"Failed to initialize database: {str(e)}")
         return False
 
-def init_db():
-    """Command line entry point for database initialization"""
-    create_directories()
-    success = init_database()
-    if success:
-        print("Database initialized successfully.")
-        return 0
-    else:
-        print("Failed to initialize database. Check logs for details.")
-        return 1
-
 def main():
-    """Main entry point for the CLI application"""
+    """Main entry point for the web application"""
     try:
+        # Load environment variables
+        load_dotenv()
+        
         create_directories()
         
         # Check if database exists, initialize if not
@@ -66,16 +56,42 @@ def main():
         if not os.path.exists(db_path) and 'sqlite' in os.environ.get('DATABASE_URL', 'sqlite:///'):
             init_database()
         
-        # Run the CLI
-        cli(obj={})
-        return 0
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user. Exiting...")
+        # Determine environment and configuration
+        env = os.environ.get('FLASK_ENV', 'production')
+        if env == 'development':
+            from config import DevConfig
+            config_class = DevConfig
+        elif env == 'testing':
+            from config import TestConfig
+            config_class = TestConfig
+        else:
+            from config import ProdConfig
+            config_class = ProdConfig
+        
+        # Create app with the appropriate configuration
+        app = create_app(config_class)
+        
+        # Get host and port from environment or use defaults
+        host = os.environ.get('HOST', '127.0.0.1')
+        port = int(os.environ.get('PORT', 5000))
+        
+        # Run the app
+        logger.info(f"Starting web server in {env} mode on {host}:{port}")
+        app.run(host=host, port=port, debug=(env == 'development'))
+        
         return 0
     except Exception as e:
         logger.error(f"An unexpected error occurred: {str(e)}")
         print(f"An unexpected error occurred: {str(e)}")
         return 1
+
+def cli():
+    """CLI entry point for Flask commands"""
+    load_dotenv()
+    from config import Config
+    app = create_app(Config)
+    cli = FlaskGroup(create_app=lambda: app)
+    return cli()
 
 if __name__ == '__main__':
     sys.exit(main())

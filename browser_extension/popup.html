@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Data Privacy Vault</title>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <img src="icons/icon48.png" alt="Logo">
+      <h1>Data Privacy Vault</h1>
+    </div>
+    
+    <!-- Login Form -->
+    <div id="loginForm">
+      <div class="form-group">
+        <label for="serverUrl">Server URL</label>
+        <input type="text" id="serverUrl" placeholder="https://your-vault-server.com">
+      </div>
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" placeholder="Username">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="Password">
+      </div>
+      <div class="form-group hidden" id="mfaGroup">
+        <label for="mfaCode">MFA Code</label>
+        <input type="text" id="mfaCode" placeholder="6-digit code">
+      </div>
+      <button id="loginBtn" class="btn primary-btn">Login</button>
+    </div>
+    
+    <!-- Credentials List -->
+    <div id="credentialList" class="hidden">
+      <!-- Search and Filter -->
+      <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search credentials...">
+        <select id="categoryFilter">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+      
+      <!-- Credentials -->
+      <div class="credential-list">
+        <h2>Available Credentials</h2>
+        <div id="credentials"></div>
+      </div>
+      
+      <!-- Actions -->
+      <div class="action-buttons">
+        <button id="refreshBtn" class="btn secondary-btn">Refresh</button>
+        <button id="logoutBtn" class="btn danger-btn">Logout</button>
+      </div>
+    </div>
+    
+    <!-- Credential Detail View -->
+    <div id="credentialDetail" class="hidden">
+      <div class="detail-header">
+        <button id="backBtn" class="btn secondary-btn">&larr; Back</button>
+        <h2 id="detailName"></h2>
+      </div>
+      
+      <div class="detail-content">
+        <div class="form-group">
+          <label>Password/Data</label>
+          <div class="password-container">
+            <input type="password" id="detailData" readonly>
+            <button id="togglePassword" class="icon-btn">👁️</button>
+            <button id="copyData" class="icon-btn">📋</button>
+          </div>
+        </div>
+        
+        <div class="detail-info">
+          <div class="info-row" id="categoryRow">
+            <span class="info-label">Category:</span>
+            <span id="detailCategory" class="info-value"></span>
+          </div>
+          <div class="info-row" id="urlRow">
+            <span class="info-label">URL:</span>
+            <span id="detailUrl" class="info-value"></span>
+          </div>
+          <div class="info-row" id="notesRow">
+            <span class="info-label">Notes:</span>
+            <span id="detailNotes" class="info-value"></span>
+          </div>
+        </div>
+        
+        <div class="action-buttons">
+          <button id="autofillBtn" class="btn primary-btn">Autofill</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Status Messages -->
+    <div id="statusMessage" class="status-message"></div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
